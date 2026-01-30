@@ -3,10 +3,14 @@ package com.htc.backend.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -18,6 +22,8 @@ import java.util.stream.Collectors;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
+    
+    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleResourceNotFoundException(
@@ -102,7 +108,7 @@ public class GlobalExceptionHandler {
             ConstraintViolationException ex, HttpServletRequest request) {
         List<String> details = ex.getConstraintViolations()
                 .stream()
-                .map(ConstraintViolation::getMessage)
+                .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
                 .collect(Collectors.toList());
         
         ErrorResponse errorResponse = new ErrorResponse(
@@ -133,6 +139,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGlobalException(
             Exception ex, HttpServletRequest request) {
+        logger.error("Unexpected error occurred at {}: ", request.getRequestURI(), ex);
+        
         ErrorResponse errorResponse = new ErrorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
                 "Internal Server Error",
@@ -140,5 +148,37 @@ public class GlobalExceptionHandler {
                 request.getRequestURI()
         );
         return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+    
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMethodNotSupportedException(
+            HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
+        String message = String.format("Request method '%s' not supported. Supported methods: %s",
+                ex.getMethod(),
+                ex.getSupportedHttpMethods() != null ? String.join(", ", ex.getSupportedHttpMethods().toString()) : "");
+        
+        ErrorResponse errorResponse = new ErrorResponse(
+                HttpStatus.METHOD_NOT_ALLOWED.value(),
+                "Method Not Allowed",
+                message,
+                request.getRequestURI()
+        );
+        return new ResponseEntity<>(errorResponse, HttpStatus.METHOD_NOT_ALLOWED);
+    }
+    
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMediaTypeNotSupportedException(
+            HttpMediaTypeNotSupportedException ex, HttpServletRequest request) {
+        String message = String.format("Media type '%s' is not supported. Supported media types: %s",
+                ex.getContentType(),
+                ex.getSupportedMediaTypes());
+        
+        ErrorResponse errorResponse = new ErrorResponse(
+                HttpStatus.UNSUPPORTED_MEDIA_TYPE.value(),
+                "Unsupported Media Type",
+                message,
+                request.getRequestURI()
+        );
+        return new ResponseEntity<>(errorResponse, HttpStatus.UNSUPPORTED_MEDIA_TYPE);
     }
 }

@@ -1,5 +1,6 @@
 package com.htc.backend.exception;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -10,6 +11,8 @@ public class ErrorResponse {
     private String error;
     private String message;
     private String path;
+    
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private List<String> details;
     
     public ErrorResponse() {
